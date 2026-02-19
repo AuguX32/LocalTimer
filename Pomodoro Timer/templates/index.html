@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timer</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-linear-65 from-purple-500 to-pink-500">
+
+    <header class="text-[40px] text-bold rounded-lg mx-auto max-w-xl mt-3 bg-violet-800 text-white text-center p-4 py-5 flex justify-center">
+        
+        <h3 class="font-bold">Timer</h3>
+    
+    </header>
+ 
+    <main class="text-[20px] rounded-lg mx-auto max-w-4xl mt-3 bg-violet-800 text-white text-center p-4 py-5 flex justify-center">
+
+
+        <div class="flex flex-col items-center w-full">
+            
+            <div class="flex flex-col md:flex-row justify-center items-center w-full mb-8">
+                
+                <!-- Partie Timer -->
+                <div class="flex flex-col items-center">
+                    
+                    <div class="relative mb-4 cursor-pointer hover:scale-105 transition-transform" onclick="toggleTimer()">
+                        <svg class="transform -rotate-90 w-64 h-64">
+                            <circle cx="128" cy="128" r="120" stroke="currentColor" stroke-width="12" fill="transparent" class="text-violet-900 opacity-30" />
+                            <circle id="progress-ring" cx="128" cy="128" r="120" stroke="currentColor" stroke-width="12" fill="transparent" class="text-teal-400 transition-all duration-1000 ease-linear" />
+                        </svg>
+                        <div class="absolute top-0 left-0 w-full h-full flex items-center justify-center text-[50px] font-bold">
+                            <span id="timer-display">25:00</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Boutons ajustement temps -->
+                    <div class="flex space-x-4 mb-6">
+                        <button class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-1 px-3 rounded text-sm" onclick="adjustTime(-60)">-1 min</button>
+                        <button class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-1 px-3 rounded text-sm" onclick="adjustTime(60)">+1 min</button>
+                    </div>
+
+                    <!-- Boutons de contrôle -->
+                    <div class="flex space-x-2">
+                        <button class="bg-teal-500 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded" onclick="startTimer()">Start</button>
+                        <button class="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded" onclick="pauseTimer()">Pause</button>
+                        <button class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded" onclick="resetTimer()">Reset</button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Élément Audio pour le son (Bip) -->
+        <audio id="alarm-sound" src="https://www.soundjay.com/phone_c2026/sounds/telephone-ring-03b.mp3"></audio>
+    </main>
+
+    <script>
+    // Cette fonction envoie une requête "POST" au serveur Python
+    let isRunning = false; // Variable locale pour savoir si ça tourne
+
+    // Fonction unifiée pour Start/Pause en cliquant sur le cercle
+    function toggleTimer() {
+        if (isRunning) {
+            pauseTimer();
+        } else {
+            startTimer();
+        }
+    }
+
+    function startTimer() {
+        fetch('/start', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            console.log("Réponse du serveur:", data.status);
+        })
+        .catch(error => console.error('Erreur:', error));
+    }
+
+    function pauseTimer() {
+        fetch('/pause', { method: 'POST' });
+    }
+
+    function resetTimer() {
+        fetch('/reset', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('timer-display').innerText = data.time;
+        });
+    }
+
+    function adjustTime(delta) {
+        fetch('/adjust_time', { 
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ delta: delta })
+        });
+    }
+
+    let soundPlayed = false;
+
+    // Configuration du cercle
+    const circle = document.getElementById('progress-ring');
+    const radius = circle.r.baseVal.value;
+    const circumference = radius * 2 * Math.PI;
+    circle.style.strokeDasharray = `${circumference} ${circumference}`;
+
+    setInterval(() => {
+        fetch('/get_time')
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('timer-display').innerText = data.time;
+                isRunning = data.is_running; // Mise à jour de l'état local
+                
+                // Calcul de la progression du cercle
+                const percent = data.seconds / data.total;
+                const offset = circumference - (percent * circumference);
+                
+                // On met à jour le cercle de progression, peu importe le mode
+                circle.style.strokeDashoffset = offset;
+
+                // On met à jour le titre et la couleur du cercle selon le mode
+                document.getElementById('mode-display').innerText = (data.mode === 'work') ? 'Travail' : 'Pause';
+                if (data.mode === 'work') {
+                    circle.classList.remove('text-pink-400');
+                    circle.classList.add('text-teal-400');
+                } else { // mode 'break'
+                    circle.classList.remove('text-teal-400');
+                    circle.classList.add('text-pink-400');
+                }
+
+                // Si le temps est 00:00 et qu'on n'a pas encore joué le son
+                if (data.time === "00:00" && !soundPlayed) {
+                    document.getElementById('alarm-sound').play();
+                    soundPlayed = true;
+                }
+                // Réinitialiser le flag si le temps change (pour le prochain cycle)
+                if (data.time !== "00:00") {
+                    soundPlayed = false;
+                }
+            });
+    }, 1000);
+    </script>
+
+    <footer class="text-center text-white mt-5">Created by Augustin Lebret with a little help of Google Gemini 2.5</footer>
+
+</body> 
+</html>
